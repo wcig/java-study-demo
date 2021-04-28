@@ -1,47 +1,45 @@
 package com.wcig.app.http;
 
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.FileSystemResource;
-import org.springframework.http.*;
-import org.springframework.http.client.ClientHttpRequestFactory;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
-import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.BodyInserters;
+import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
+import reactor.core.publisher.Mono;
+import reactor.netty.http.client.HttpClient;
 
 import javax.annotation.Resource;
 import java.io.File;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * HTTP请求工具类 (RestTemplate)
+ * HTTP请求工具类 (WebClient)
  *
- * 1.特点: 同步阻塞
- * 2.依赖包: spring-web, jackson-core, jackson-databind (可选:jackson-annotations)
+ * 1.特点: 异步非阻塞
+ * 2.依赖包: spring-web, reactor-core, reactor-netty, jackson-core, jackson-databind (可选:jackson-annotations)
  * 3.异常: 4xx,5xx抛出RestTemplate定义异常, 1xx,3xx抛出自定义异常RequestException
  */
-@Configuration
-@Service
-public class RestTemplateUtil {
+@Component
+public class WebClientUtil {
 
     @Resource
-    private RestTemplate restTemplate;
+    private WebClient webClient;
 
     @Bean
-    public RestTemplate restTemplate(ClientHttpRequestFactory factory) {
-        return new RestTemplate(factory);
-    }
-
-    @Bean
-    public ClientHttpRequestFactory simpleClientHttpRequestFactory() {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setReadTimeout(30000);
-        factory.setConnectTimeout(30000);
-        return factory;
+    public WebClient webClient() {
+        HttpClient httpClient = HttpClient.create()
+                .responseTimeout(Duration.ofMillis(30000));
+        return WebClient.builder()
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .build();
     }
 
     public String get(String url) throws RequestException {
@@ -56,11 +54,16 @@ public class RestTemplateUtil {
     public <T> T get(String url, Map<String, Object> urlParams, Class<T> clazz) throws RequestException {
         UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url);
         urlParams.forEach(builder::queryParam);
-        ResponseEntity<T> res = restTemplate.getForEntity(builder.toUriString(), clazz);
-        if (res.getStatusCode() != HttpStatus.OK) {
-            throw new RequestException(url, res.getStatusCodeValue(), urlParams, null);
-        }
-        return res.getBody();
+
+        return webClient.get()
+                .uri(url)
+                .exchange()
+                .flatMap(clientResponse -> {
+            if (clientResponse.statusCode() != HttpStatus.OK) {
+                return Mono.error(new RequestException(url, clientResponse.rawStatusCode(), urlParams, null));
+            }
+            return clientResponse.bodyToMono(clazz);
+        }).block();
     }
 
     public String postJson(String url, Object body) throws RequestException {
@@ -77,16 +80,16 @@ public class RestTemplateUtil {
     }
 
     public <T> T postJson(String url, Map<String, Object> urlParams, Object body, Class<T> clazz) throws RequestException {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url);
-        urlParams.forEach(builder::queryParam);
-        HttpEntity<Object> entity = new HttpEntity<>(body, headers);
-        ResponseEntity<T> res = restTemplate.postForEntity(builder.toUriString(), entity, clazz);
-        if (res.getStatusCode() != HttpStatus.OK) {
-            throw new RequestException(url, res.getStatusCodeValue(), urlParams, body);
-        }
-        return res.getBody();
+        return webClient.post().uri(url)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(BodyInserters.fromObject(body))
+                .exchange()
+                .flatMap(clientResponse -> {
+            if (clientResponse.statusCode() != HttpStatus.OK) {
+                return Mono.error(new RequestException(url, clientResponse.rawStatusCode(), urlParams, null));
+            }
+            return clientResponse.bodyToMono(clazz);
+        }).block();
     }
 
     public String postFormUrlencoded(String url, Map<String, Object> params) throws RequestException {
@@ -94,16 +97,18 @@ public class RestTemplateUtil {
     }
 
     public <T> T postFormUrlencoded(String url, Map<String, Object> params, Class<T> clazz) throws RequestException {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-        MultiValueMap<String, Object> map= new LinkedMultiValueMap<>();
+        MultiValueMap<String, String> map= new LinkedMultiValueMap<>();
         params.forEach((k, v) -> map.add(k, String.valueOf(v)));
-        HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(map, headers);
-        ResponseEntity<T> res = restTemplate.postForEntity(url, entity, clazz);
-        if (res.getStatusCode() != HttpStatus.OK) {
-            throw new RequestException(url, res.getStatusCodeValue(), null, params);
-        }
-        return res.getBody();
+        return webClient.post().uri(url)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(BodyInserters.fromFormData(map))
+                .exchange()
+                .flatMap(clientResponse -> {
+                    if (clientResponse.statusCode() != HttpStatus.OK) {
+                        return Mono.error(new RequestException(url, clientResponse.rawStatusCode(), null, null));
+                    }
+                    return clientResponse.bodyToMono(clazz);
+                }).block();
     }
 
     public String postFormData(String url, Map<String, Object> params) throws RequestException {
@@ -120,16 +125,18 @@ public class RestTemplateUtil {
     }
 
     public <T> T postFormData(String url, Map<String, Object> params, Map<String, File> files, Class<T> clazz) throws RequestException {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
         MultiValueMap<String, Object> map= new LinkedMultiValueMap<>();
         params.forEach((k, v) -> map.add(k, String.valueOf(v)));
         files.forEach((k, v) -> map.add(k, new FileSystemResource(v)));
-        HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(map, headers);
-        ResponseEntity<T> res = restTemplate.postForEntity(url, entity, clazz);
-        if (res.getStatusCode() != HttpStatus.OK) {
-            throw new RequestException(url, res.getStatusCodeValue(), null, params);
-        }
-        return res.getBody();
+        return webClient.post().uri(url)
+                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .body(BodyInserters.fromMultipartData(map))
+                .exchange()
+                .flatMap(clientResponse -> {
+                    if (clientResponse.statusCode() != HttpStatus.OK) {
+                        return Mono.error(new RequestException(url, clientResponse.rawStatusCode(), null, params));
+                    }
+                    return clientResponse.bodyToMono(clazz);
+                }).block();
     }
 }

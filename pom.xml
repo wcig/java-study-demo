@@ -35,11 +35,32 @@
             <version>${spring.version}</version>
         </dependency>
 
+        <!--spring-webflux-->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webflux</artifactId>
+            <version>5.1.2.RELEASE</version>
+        </dependency>
+
         <!--spring-test-->
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-test</artifactId>
             <version>${spring.version}</version>
+        </dependency>
+
+        <!--reactor-core-->
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-core</artifactId>
+            <version>3.4.2</version>
+        </dependency>
+
+        <!--reactor-netty-->
+        <dependency>
+            <groupId>io.projectreactor.netty</groupId>
+            <artifactId>reactor-netty</artifactId>
+            <version>1.0.4</version>
         </dependency>
 
         <!-- lombok -->
