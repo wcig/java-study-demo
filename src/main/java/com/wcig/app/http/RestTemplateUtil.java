@@ -57,8 +57,8 @@ public class RestTemplateUtil {
         UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url);
         urlParams.forEach(builder::queryParam);
         ResponseEntity<T> res = restTemplate.getForEntity(builder.toUriString(), clazz);
-        if (res.getStatusCode() != HttpStatus.OK) {
-            throw new RequestException(url, res.getStatusCodeValue(), urlParams, null);
+        if (!res.getStatusCode().is2xxSuccessful()) {
+            throw new RequestException("http status not 2xx", url, res.getStatusCodeValue(), urlParams, null);
         }
         return res.getBody();
     }
@@ -83,8 +83,8 @@ public class RestTemplateUtil {
         urlParams.forEach(builder::queryParam);
         HttpEntity<Object> entity = new HttpEntity<>(body, headers);
         ResponseEntity<T> res = restTemplate.postForEntity(builder.toUriString(), entity, clazz);
-        if (res.getStatusCode() != HttpStatus.OK) {
-            throw new RequestException(url, res.getStatusCodeValue(), urlParams, body);
+        if (!res.getStatusCode().is2xxSuccessful()) {
+            throw new RequestException("http status not 2xx", url, res.getStatusCodeValue(), urlParams, body);
         }
         return res.getBody();
     }
@@ -100,8 +100,8 @@ public class RestTemplateUtil {
         params.forEach((k, v) -> map.add(k, String.valueOf(v)));
         HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(map, headers);
         ResponseEntity<T> res = restTemplate.postForEntity(url, entity, clazz);
-        if (res.getStatusCode() != HttpStatus.OK) {
-            throw new RequestException(url, res.getStatusCodeValue(), null, params);
+        if (!res.getStatusCode().is2xxSuccessful()) {
+            throw new RequestException("http status not 2xx", url, res.getStatusCodeValue(), null, params);
         }
         return res.getBody();
     }
@@ -127,8 +127,8 @@ public class RestTemplateUtil {
         files.forEach((k, v) -> map.add(k, new FileSystemResource(v)));
         HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(map, headers);
         ResponseEntity<T> res = restTemplate.postForEntity(url, entity, clazz);
-        if (res.getStatusCode() != HttpStatus.OK) {
-            throw new RequestException(url, res.getStatusCodeValue(), null, params);
+        if (!res.getStatusCode().is2xxSuccessful()) {
+            throw new RequestException("http status not 2xx", url, res.getStatusCodeValue(), null, params);
         }
         return res.getBody();
     }

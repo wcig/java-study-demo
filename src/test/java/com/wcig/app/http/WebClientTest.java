@@ -76,7 +76,7 @@ public class WebClientTest {
         Map<String, Object> params = new HashMap<>();
         params.put("id", 100);
         params.put("name", "tom");
-        String filePath = "/home/yangbo/Pictures/test.png";
+        String filePath = "/Users/yangbo/Pictures/test.png";
         Map<String, File> files = new HashMap<>();
         files.put("file", new File(filePath));
 

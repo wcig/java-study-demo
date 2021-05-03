@@ -2,7 +2,6 @@ package com.wcig.app.http;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.io.FileSystemResource;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
@@ -22,7 +21,7 @@ import java.util.Map;
 
 /**
  * HTTP请求工具类 (WebClient)
- *
+ * <p>
  * 1.特点: 异步非阻塞
  * 2.依赖包: spring-web, reactor-core, reactor-netty, jackson-core, jackson-databind (可选:jackson-annotations)
  * 3.异常: 4xx,5xx抛出RestTemplate定义异常, 1xx,3xx抛出自定义异常RequestException
@@ -59,11 +58,11 @@ public class WebClientUtil {
                 .uri(url)
                 .exchange()
                 .flatMap(clientResponse -> {
-            if (clientResponse.statusCode() != HttpStatus.OK) {
-                return Mono.error(new RequestException(url, clientResponse.rawStatusCode(), urlParams, null));
-            }
-            return clientResponse.bodyToMono(clazz);
-        }).block();
+                    if (!clientResponse.statusCode().is2xxSuccessful()) {
+                        return Mono.error(new RequestException("http status not 2xx", url, clientResponse.rawStatusCode(), urlParams, null));
+                    }
+                    return clientResponse.bodyToMono(clazz);
+                }).block();
     }
 
     public String postJson(String url, Object body) throws RequestException {
@@ -85,11 +84,11 @@ public class WebClientUtil {
                 .body(BodyInserters.fromObject(body))
                 .exchange()
                 .flatMap(clientResponse -> {
-            if (clientResponse.statusCode() != HttpStatus.OK) {
-                return Mono.error(new RequestException(url, clientResponse.rawStatusCode(), urlParams, null));
-            }
-            return clientResponse.bodyToMono(clazz);
-        }).block();
+                    if (!clientResponse.statusCode().is2xxSuccessful()) {
+                        return Mono.error(new RequestException("http status not 2xx", url, clientResponse.rawStatusCode(), urlParams, null));
+                    }
+                    return clientResponse.bodyToMono(clazz);
+                }).block();
     }
 
     public String postFormUrlencoded(String url, Map<String, Object> params) throws RequestException {
@@ -97,15 +96,15 @@ public class WebClientUtil {
     }
 
     public <T> T postFormUrlencoded(String url, Map<String, Object> params, Class<T> clazz) throws RequestException {
-        MultiValueMap<String, String> map= new LinkedMultiValueMap<>();
+        MultiValueMap<String, String> map = new LinkedMultiValueMap<>();
         params.forEach((k, v) -> map.add(k, String.valueOf(v)));
         return webClient.post().uri(url)
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(BodyInserters.fromFormData(map))
                 .exchange()
                 .flatMap(clientResponse -> {
-                    if (clientResponse.statusCode() != HttpStatus.OK) {
-                        return Mono.error(new RequestException(url, clientResponse.rawStatusCode(), null, null));
+                    if (!clientResponse.statusCode().is2xxSuccessful()) {
+                        return Mono.error(new RequestException("http status not 2xx", url, clientResponse.rawStatusCode(), null, null));
                     }
                     return clientResponse.bodyToMono(clazz);
                 }).block();
@@ -125,7 +124,7 @@ public class WebClientUtil {
     }
 
     public <T> T postFormData(String url, Map<String, Object> params, Map<String, File> files, Class<T> clazz) throws RequestException {
-        MultiValueMap<String, Object> map= new LinkedMultiValueMap<>();
+        MultiValueMap<String, Object> map = new LinkedMultiValueMap<>();
         params.forEach((k, v) -> map.add(k, String.valueOf(v)));
         files.forEach((k, v) -> map.add(k, new FileSystemResource(v)));
         return webClient.post().uri(url)
@@ -133,8 +132,8 @@ public class WebClientUtil {
                 .body(BodyInserters.fromMultipartData(map))
                 .exchange()
                 .flatMap(clientResponse -> {
-                    if (clientResponse.statusCode() != HttpStatus.OK) {
-                        return Mono.error(new RequestException(url, clientResponse.rawStatusCode(), null, params));
+                    if (!clientResponse.statusCode().is2xxSuccessful()) {
+                        return Mono.error(new RequestException("http status not 2xx", url, clientResponse.rawStatusCode(), null, params));
                     }
                     return clientResponse.bodyToMono(clazz);
                 }).block();
