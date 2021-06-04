@@ -11,3 +11,7 @@ target
 
 # Go
 go-app
+
+# My
+out.*
+tmp.*
